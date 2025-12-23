@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+"""
+Quick PDF Processor - Just edit the settings below and run!
+"""
+
+import os
+import json
+import PyPDF2
+from openai import OpenAI
+
+# ====== EDIT THESE SETTINGS ======
+# Read API key from environment variable or .openai_key file
+API_KEY = os.getenv('OPENAI_API_KEY') or open('.openai_key', 'r').read().strip() 
+BOOK_TITLE = "A Little Life"
+BOOK_AUTHOR = "Hanya Yanagihara"
+BOOK_YEAR = 2015
+
+# Chapter files to process (in order) - can be .pdf or .txt
+CHAPTER_FILES = [
+    "A Little Life_CH1.txt",
+    # Add more chapters here as you get them
+]
+# ==================================
+
+
+def extract_text_from_file(file_path):
+    """Extract text from PDF or TXT file"""
+    print(f"Reading {os.path.basename(file_path)}...")
+
+    # Check if it's a text file
+    if file_path.lower().endswith('.txt'):
+        with open(file_path, 'r', encoding='utf-8') as file:
+            text = file.read()
+        print(f"   Extracted {len(text):,} characters from text file")
+        return text.strip()
+
+    # Otherwise try PDF extraction
+    elif file_path.lower().endswith('.pdf'):
+        with open(file_path, 'rb') as file:
+            reader = PyPDF2.PdfReader(file)
+            text = ""
+            for page in reader.pages:
+                text += page.extract_text() + "\n"
+        print(f"   Extracted {len(text):,} characters from PDF")
+        return text.strip()
+
+    else:
+        raise Exception(f"Unsupported file type: {file_path}. Use .pdf or .txt files.")
+
+
+def extract_characters_with_llm(client, all_text, existing_characters=None):
+    """Use LLM to extract characters"""
+    print("\nExtracting characters with AI...")
+
+    existing_context = ""
+    if existing_characters:
+        char_names = list(existing_characters.keys())
+        existing_context = f"\n\nExisting characters already identified:\n{', '.join(char_names)}\n\nPlease identify any NEW characters not in this list, and also update appearance counts for existing characters if they appear in this chapter."
+
+    prompt = f"""Analyze this chapter from a book and extract character information. Return a JSON object where each key is the character's name as it appears in the text, and the value contains:
+- name: Full character name
+- description: Brief 1-2 sentence description of who they are and their role
+- role: Their role (Protagonist, Supporting Character, Antagonist, etc.)
+- appearances: Estimated number of times they appear in this text (count mentions)
+- relationships: Array of {{"character": "name", "type": "relationship type"}} (optional)
+
+{existing_context}
+
+Only extract main characters, not minor mentions. Return ONLY valid JSON, no markdown or explanation.
+
+Text:
+{all_text}"""
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": "You are a literary analysis assistant. Extract character information from book chapters and return it as valid JSON."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        temperature=0.7
+    )
+
+    content = response.choices[0].message.content
+    content = content.replace("```json\n", "").replace("```\n", "").replace("```", "").strip()
+
+    new_characters = json.loads(content)
+    print(f"[OK] Found {len(new_characters)} characters in this chapter")
+
+    return new_characters
+
+
+def main():
+    print("=" * 60)
+    print("  PDF Chapter Processor")
+    print("=" * 60)
+    print()
+
+    # Setup OpenAI client
+    client = OpenAI(api_key=API_KEY)
+    print("[OK] OpenAI API configured")
+    print(f"[OK] Book: {BOOK_TITLE} by {BOOK_AUTHOR}\n")
+
+    # Process all chapters
+    chapters = []
+    all_characters = {}
+
+    for idx, chapter_file in enumerate(CHAPTER_FILES, 1):
+        if not os.path.exists(chapter_file):
+            print(f"[ERROR] File not found: {chapter_file}")
+            continue
+
+        # Extract text
+        text = extract_text_from_file(chapter_file)
+        chapters.append({
+            "chapter": f"Chapter {idx}",
+            "text": text
+        })
+
+        # Extract characters for this chapter
+        chapter_text = text
+        new_chars = extract_characters_with_llm(client, chapter_text, all_characters)
+
+        # Merge characters
+        for key, char in new_chars.items():
+            if key in all_characters:
+                all_characters[key]["appearances"] += char["appearances"]
+            else:
+                all_characters[key] = char
+
+        print(f"[OK] Total unique characters so far: {len(all_characters)}\n")
+
+    if not chapters:
+        print("[ERROR] No chapters processed")
+        return
+
+    # Export to TypeScript
+    print(f"Exporting to src/app/data/bookData.ts...")
+
+    ts_content = f'''/**
+ * BOOK DATA CONFIGURATION
+ * Generated by PDF Processor
+ */
+
+export interface Character {{
+  name: string;
+  description: string;
+  role: string;
+  appearances: number;
+  relationships?: Array<{{
+    character: string;
+    type: string;
+  }}>;
+}}
+
+export interface PageContent {{
+  text: string;
+  chapter: string;
+}}
+
+// ============================================
+// CHARACTER DEFINITIONS
+// ============================================
+export const characters: Record<string, Character> = {json.dumps(all_characters, indent=2)};
+
+// ============================================
+// BOOK PAGES/CHAPTERS
+// ============================================
+export const pages: PageContent[] = {json.dumps(chapters, indent=2)};
+
+// ============================================
+// BOOK METADATA
+// ============================================
+export const bookMetadata = {{
+  title: {json.dumps(BOOK_TITLE)},
+  author: {json.dumps(BOOK_AUTHOR)},
+  year: {BOOK_YEAR}
+}};
+'''
+
+    os.makedirs("src/app/data", exist_ok=True)
+    with open("src/app/data/bookData.ts", 'w', encoding='utf-8') as f:
+        f.write(ts_content)
+
+    print(f"[OK] Exported successfully!")
+    print(f"\nGenerated:")
+    print(f"  - {len(chapters)} chapter(s)")
+    print(f"  - {len(all_characters)} characters")
+    print(f"\n[OK] Done! Your reading app will reload with '{BOOK_TITLE}'")
+
+
+if __name__ == "__main__":
+    main()

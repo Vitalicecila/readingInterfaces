@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Chapter Processor - Character Extraction</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            color: #1f2937;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            font-size: 0.875rem;
+        }
+
+        .metadata-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #8b5cf6;
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+        }
+
+        .api-key-section {
+            margin-top: 1rem;
+        }
+
+        label {
+            display: block;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .help-text {
+            color: #6b7280;
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .upload-zone {
+            border: 2px dashed #c4b5fd;
+            border-radius: 8px;
+            padding: 3rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 1rem;
+        }
+
+        .upload-zone:hover {
+            border-color: #8b5cf6;
+            background: #f5f3ff;
+        }
+
+        .upload-zone.dragging {
+            border-color: #8b5cf6;
+            background: #ede9fe;
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: #8b5cf6;
+            margin-bottom: 0.5rem;
+        }
+
+        .chapter-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .chapter-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+
+        .chapter-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .chapter-number {
+            width: 36px;
+            height: 36px;
+            background: #ede9fe;
+            color: #7c3aed;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .button {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.875rem;
+        }
+
+        .button-primary {
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            color: white;
+        }
+
+        .button-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+        }
+
+        .button-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+
+        .button-success:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+        }
+
+        .button-danger {
+            background: #ef4444;
+            color: white;
+            padding: 0.5rem;
+        }
+
+        .button-danger:hover {
+            background: #dc2626;
+        }
+
+        .button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .button-full {
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        .characters-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .character-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 1rem;
+        }
+
+        .character-header {
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .character-name {
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .character-role {
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+
+        .character-description {
+            color: #4b5563;
+            font-size: 0.875rem;
+            margin-bottom: 0.75rem;
+            line-height: 1.5;
+        }
+
+        .character-stats {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #9ca3af;
+        }
+
+        .empty-icon {
+            font-size: 4rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .instructions {
+            background: #dbeafe;
+            border: 1px solid #93c5fd;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 2rem;
+        }
+
+        .instructions h3 {
+            color: #1e40af;
+            margin-bottom: 0.75rem;
+            font-size: 1rem;
+        }
+
+        .instructions ol {
+            color: #1e3a8a;
+            font-size: 0.875rem;
+            padding-left: 1.5rem;
+        }
+
+        .instructions li {
+            margin-bottom: 0.5rem;
+        }
+
+        .delete-btn {
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .delete-btn:hover {
+            background: #fee2e2;
+        }
+
+        .processing {
+            display: inline-block;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-title">
+                <div class="icon">✨</div>
+                <div>
+                    <h1>PDF Chapter Processor</h1>
+                    <p class="subtitle">Upload chapters progressively and extract characters with AI</p>
+                </div>
+            </div>
+
+            <!-- Book Metadata -->
+            <div class="metadata-grid">
+                <input type="text" id="bookTitle" placeholder="Book Title" />
+                <input type="text" id="bookAuthor" placeholder="Author Name" />
+                <input type="text" id="bookYear" placeholder="Year" />
+            </div>
+
+            <!-- API Key -->
+            <div class="api-key-section">
+                <label for="apiKey">OpenAI API Key (for character extraction)</label>
+                <input type="password" id="apiKey" placeholder="sk-..." />
+                <p class="help-text">Your API key is only used in your browser and never stored on any server</p>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+            <!-- Left: Chapters -->
+            <div class="card">
+                <div class="card-header">
+                    📄 Chapters (<span id="chapterCount">0</span>)
+                </div>
+
+                <!-- Upload Zone -->
+                <div class="upload-zone" id="uploadZone">
+                    <div class="upload-icon">📤</div>
+                    <p style="font-weight: 500; margin-bottom: 0.5rem;">Upload Chapter PDF</p>
+                    <p style="font-size: 0.875rem; color: #6b7280;">Click or drag and drop</p>
+                    <input type="file" id="fileInput" accept=".pdf" style="display: none;" />
+                </div>
+
+                <!-- Chapter List -->
+                <div class="chapter-list" id="chapterList"></div>
+
+                <!-- Extract Button -->
+                <button class="button button-primary button-full" id="extractBtn" disabled>
+                    ✨ Extract Characters with AI
+                </button>
+            </div>
+
+            <!-- Right: Characters -->
+            <div class="card">
+                <div class="card-header">
+                    👥 Extracted Characters (<span id="characterCount">0</span>)
+                </div>
+
+                <div class="characters-grid" id="charactersList">
+                    <div class="empty-state">
+                        <div class="empty-icon">👥</div>
+                        <p>No characters extracted yet</p>
+                        <p style="font-size: 0.75rem; margin-top: 0.5rem;">Upload chapters and click "Extract Characters"</p>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <button class="button button-success button-full" id="exportBtn" disabled>
+                    💾 Export to bookData.ts
+                </button>
+                <button class="button button-danger button-full" id="clearBtn" disabled>
+                    🗑️ Clear All
+                </button>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="instructions">
+            <h3>How to use:</h3>
+            <ol>
+                <li>Enter your book metadata (title, author, year) at the top</li>
+                <li>Add your OpenAI API key (get one at <a href="https://platform.openai.com" target="_blank">platform.openai.com</a>)</li>
+                <li>Upload Chapter 1 PDF - text will be extracted automatically</li>
+                <li>Click "Extract Characters with AI" - AI will identify characters and their info</li>
+                <li>Upload Chapter 2 PDF - AI will add new characters and update existing ones</li>
+                <li>Continue uploading chapters progressively</li>
+                <li>When done, click "Export to bookData.ts" and replace the file in src/app/data/</li>
+            </ol>
+        </div>
+    </div>
+
+    <script type="module">
+        const state = {
+            chapters: [],
+            characters: {}
+        };
+
+        // Elements
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const chapterList = document.getElementById('chapterList');
+        const charactersList = document.getElementById('charactersList');
+        const extractBtn = document.getElementById('extractBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const apiKeyInput = document.getElementById('apiKey');
+
+        // Upload zone click
+        uploadZone.addEventListener('click', () => fileInput.click());
+
+        // File selection
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) await processPDF(file);
+            fileInput.value = ''; // Reset input
+        });
+
+        // Drag and drop
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragging');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragging');
+        });
+
+        uploadZone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragging');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type === 'application/pdf') {
+                await processPDF(file);
+            }
+        });
+
+        async function processPDF(file) {
+            uploadZone.innerHTML = '<div class="processing">📄 Processing PDF...</div>';
+
+            try {
+                const pdfjsLib = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs');
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';
+
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+                let fullText = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map(item => item.str).join(' ');
+                    fullText += pageText + '\n';
+                }
+
+                state.chapters.push({
+                    number: state.chapters.length + 1,
+                    text: fullText.trim(),
+                    fileName: file.name
+                });
+
+                renderChapters();
+                updateCounts();
+                resetUploadZone();
+            } catch (error) {
+                console.error('Error processing PDF:', error);
+                alert('Error processing PDF. Please try again.');
+                resetUploadZone();
+            }
+        }
+
+        function resetUploadZone() {
+            uploadZone.innerHTML = `
+                <div class="upload-icon">📤</div>
+                <p style="font-weight: 500; margin-bottom: 0.5rem;">Upload Chapter PDF</p>
+                <p style="font-size: 0.875rem; color: #6b7280;">Click or drag and drop</p>
+            `;
+        }
+
+        function renderChapters() {
+            chapterList.innerHTML = state.chapters.map((ch, idx) => `
+                <div class="chapter-item">
+                    <div class="chapter-info">
+                        <div class="chapter-number">${ch.number}</div>
+                        <div>
+                            <p style="font-weight: 500; font-size: 0.875rem;">${ch.fileName}</p>
+                            <p style="font-size: 0.75rem; color: #6b7280;">${ch.text.length.toLocaleString()} characters</p>
+                        </div>
+                    </div>
+                    <button class="delete-btn" onclick="removeChapter(${idx})">🗑️</button>
+                </div>
+            `).join('');
+        }
+
+        window.removeChapter = (index) => {
+            state.chapters.splice(index, 1);
+            // Renumber chapters
+            state.chapters.forEach((ch, idx) => ch.number = idx + 1);
+            renderChapters();
+            updateCounts();
+        };
+
+        function renderCharacters() {
+            const chars = Object.entries(state.characters);
+            if (chars.length === 0) {
+                charactersList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">👥</div>
+                        <p>No characters extracted yet</p>
+                        <p style="font-size: 0.75rem; margin-top: 0.5rem;">Upload chapters and click "Extract Characters"</p>
+                    </div>
+                `;
+                return;
+            }
+
+            charactersList.innerHTML = chars.map(([key, char]) => `
+                <div class="character-card">
+                    <div class="character-header">
+                        <span class="character-name">${char.name}</span>
+                        <span class="character-role">${char.role}</span>
+                    </div>
+                    <div class="character-description">${char.description}</div>
+                    <div class="character-stats">
+                        <span>Appearances: ${char.appearances}</span>
+                        ${char.relationships ? `<span>${char.relationships.length} relationships</span>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateCounts() {
+            document.getElementById('chapterCount').textContent = state.chapters.length;
+            document.getElementById('characterCount').textContent = Object.keys(state.characters).length;
+
+            extractBtn.disabled = state.chapters.length === 0 || !apiKeyInput.value;
+            exportBtn.disabled = state.chapters.length === 0 && Object.keys(state.characters).length === 0;
+            clearBtn.disabled = state.chapters.length === 0 && Object.keys(state.characters).length === 0;
+        }
+
+        apiKeyInput.addEventListener('input', updateCounts);
+
+        extractBtn.addEventListener('click', async () => {
+            const apiKey = apiKeyInput.value.trim();
+            if (!apiKey) {
+                alert('Please enter your OpenAI API key first');
+                return;
+            }
+
+            extractBtn.disabled = true;
+            extractBtn.innerHTML = '<span class="processing">✨ Processing with AI...</span>';
+
+            try {
+                const allText = state.chapters.map(ch => ch.text).join('\n\n');
+                const existingCharacters = Object.keys(state.characters).length > 0
+                    ? `\n\nExisting characters already identified:\n${Object.keys(state.characters).join(', ')}\n\nPlease identify any NEW characters not in this list, and also update appearance counts for existing characters if they appear in this chapter.`
+                    : '';
+
+                const prompt = `Analyze this chapter from a book and extract character information. Return a JSON object where each key is the character's name as it appears in the text, and the value contains:
+- name: Full character name
+- description: Brief 1-2 sentence description of who they are and their role
+- role: Their role (Protagonist, Supporting Character, Antagonist, etc.)
+- appearances: Estimated number of times they appear in this text (count mentions)
+- relationships: Array of {character: "name", type: "relationship type"} (optional)
+
+${existingCharacters}
+
+Only extract main characters, not minor mentions. Return ONLY valid JSON, no markdown or explanation.
+
+Text:
+${allText}`;
+
+                const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: 'gpt-4o-mini',
+                        messages: [
+                            {
+                                role: 'system',
+                                content: 'You are a literary analysis assistant. Extract character information from book chapters and return it as valid JSON.'
+                            },
+                            {
+                                role: 'user',
+                                content: prompt
+                            }
+                        ],
+                        temperature: 0.7
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API request failed: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                const content = data.choices[0].message.content;
+
+                let newCharacters;
+                try {
+                    const jsonText = content.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+                    newCharacters = JSON.parse(jsonText);
+                } catch (e) {
+                    console.error('Failed to parse LLM response:', content);
+                    throw new Error('Failed to parse character data from LLM response');
+                }
+
+                // Merge with existing characters
+                for (const [key, char] of Object.entries(newCharacters)) {
+                    if (state.characters[key]) {
+                        state.characters[key] = {
+                            ...state.characters[key],
+                            appearances: state.characters[key].appearances + char.appearances
+                        };
+                    } else {
+                        state.characters[key] = char;
+                    }
+                }
+
+                renderCharacters();
+                updateCounts();
+                alert(`Successfully processed! Found ${Object.keys(newCharacters).length} characters in this chapter.`);
+            } catch (error) {
+                console.error('Error extracting characters:', error);
+                alert(`Error: ${error.message}`);
+            } finally {
+                extractBtn.disabled = false;
+                extractBtn.innerHTML = '✨ Extract Characters with AI';
+            }
+        });
+
+        exportBtn.addEventListener('click', () => {
+            const bookTitle = document.getElementById('bookTitle').value || 'My Book';
+            const bookAuthor = document.getElementById('bookAuthor').value || 'Unknown Author';
+            const bookYear = parseInt(document.getElementById('bookYear').value) || new Date().getFullYear();
+
+            const pages = state.chapters.map(ch => ({
+                chapter: `Chapter ${ch.number}`,
+                text: ch.text
+            }));
+
+            const tsContent = `/**
+ * BOOK DATA CONFIGURATION
+ * Generated by PDF Processor
+ */
+
+export interface Character {
+  name: string;
+  description: string;
+  role: string;
+  appearances: number;
+  relationships?: Array<{
+    character: string;
+    type: string;
+  }>;
+}
+
+export interface PageContent {
+  text: string;
+  chapter: string;
+}
+
+// ============================================
+// CHARACTER DEFINITIONS
+// ============================================
+export const characters: Record<string, Character> = ${JSON.stringify(state.characters, null, 2)};
+
+// ============================================
+// BOOK PAGES/CHAPTERS
+// ============================================
+export const pages: PageContent[] = ${JSON.stringify(pages, null, 2)};
+
+// ============================================
+// BOOK METADATA
+// ============================================
+export const bookMetadata = {
+  title: ${JSON.stringify(bookTitle)},
+  author: ${JSON.stringify(bookAuthor)},
+  year: ${bookYear}
+};
+`;
+
+            const blob = new Blob([tsContent], { type: 'text/typescript' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'bookData.ts';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            alert('Exported! Replace src/app/data/bookData.ts with the downloaded file.');
+        });
+
+        clearBtn.addEventListener('click', () => {
+            if (confirm('Clear all chapters and characters? This cannot be undone.')) {
+                state.chapters = [];
+                state.characters = {};
+                renderChapters();
+                renderCharacters();
+                updateCounts();
+            }
+        });
+    </script>
+</body>
+</html>
