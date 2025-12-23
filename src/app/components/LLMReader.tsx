@@ -1,12 +1,7 @@
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, BookOpen, Settings, Sun, Sparkles } from 'lucide-react';
+import { BookOpen, Settings, Sun, Sparkles } from 'lucide-react';
 import { characters, bookMetadata } from '../data/bookData';
 import { getExcerptForMode } from '../data/excerptLoader';
-
-interface CharacterAppearance {
-  page: number;
-  chapter: string;
-}
 
 interface CharacterDescription {
   description: string;
@@ -53,13 +48,11 @@ const ScrambleText = ({ text }: { text: string }) => {
 };
 
 export function LLMReader() {
-  const [currentPage, setCurrentPage] = useState(0);
   const [fontSize, setFontSize] = useState(18);
   const [theme, setTheme] = useState<'white' | 'sepia'>('sepia');
   const [showSettings, setShowSettings] = useState(false);
   const [expandedCharacters, setExpandedCharacters] = useState<Set<string>>(new Set());
   const [showInstructions, setShowInstructions] = useState(true);
-  const [characterLastSeen, setCharacterLastSeen] = useState<Record<string, CharacterAppearance>>({});
   const [llmDescriptions, setLlmDescriptions] = useState<Record<string, CharacterDescription>>({});
 
   // Load excerpt based on condition and mode for counterbalancing
@@ -67,44 +60,6 @@ export function LLMReader() {
 
   // Generate unique key for each character occurrence by position
   const getOccurrenceKey = (characterName: string, position: number) => `${characterName}-${position}`;
-
-  const nextPage = () => {
-    if (currentPage < pages.length - 1) {
-      setCurrentPage(currentPage + 1);
-      setExpandedCharacters(new Set()); // Reset expanded characters on page change
-    }
-  };
-
-  const prevPage = () => {
-    if (currentPage > 0) {
-      setCurrentPage(currentPage - 1);
-      setExpandedCharacters(new Set()); // Reset expanded characters on page change
-    }
-  };
-
-  // Track characters that appear on the current page
-  useEffect(() => {
-    const text = pages[currentPage].text;
-    const sortedCharacterNames = Object.keys(characters).sort((a, b) => b.length - a.length);
-
-    sortedCharacterNames.forEach(name => {
-      if (text.includes(name)) {
-        setCharacterLastSeen(prev => {
-          // Only update if this is a new page for this character
-          if (!prev[name] || prev[name].page !== currentPage) {
-            return {
-              ...prev,
-              [name]: {
-                page: currentPage,
-                chapter: pages[currentPage].chapter
-              }
-            };
-          }
-          return prev;
-        });
-      }
-    });
-  }, [currentPage]);
 
   const toggleCharacterDescription = async (characterName: string, position: number, sentenceContext?: string, sentenceStart?: number, sentenceEnd?: number) => {
     const occurrenceKey = getOccurrenceKey(characterName, position);
@@ -166,9 +121,6 @@ export function LLMReader() {
     }));
 
     try {
-      const lastSeen = characterLastSeen[characterName];
-      const pagesDiff = lastSeen && lastSeen.page !== currentPage ? currentPage - lastSeen.page : 0;
-
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -184,11 +136,11 @@ export function LLMReader() {
             },
             {
               role: 'user',
-              content: `Character: "${characterName}"\n\nContext sentence: "${sentenceContext}"\n\nGenerate a SHORT identifying phrase (5-10 words) that tells readers who ${characterName} is. Include:\n- Their key relationship OR role OR defining characteristic\n- Match the tone and period of the original text\n\nExamples of good phrases:\n- "the witty father of five daughters"\n- "her eldest and most beautiful sister"\n- "the anxious mother"\n- "his wealthy and cheerful friend"\n\n${pagesDiff > 0 ? `They last appeared ${pagesDiff} pages ago - be clear about who they are.\n` : 'They appeared recently - still make it clear.\n'}\nReturn ONLY the short identifying phrase (no quotes, no extra explanation).`
+              content: `Character: "${characterName}"\n\nContext sentence: "${sentenceContext}"\n\nGenerate a SHORT identifying phrase (5-10 words) that tells readers who ${characterName} is. Include:\n- Their key relationship OR role OR defining characteristic\n- Match the tone and period of the original text\n\nExamples of good phrases:\n- "the witty father of five daughters"\n- "her eldest and most beautiful sister"\n- "the anxious mother"\n- "his wealthy and cheerful friend"\n\nReturn ONLY the short identifying phrase (no quotes, no extra explanation).`
             }
           ],
           temperature: 0.7,
-          seed: characterName.charCodeAt(0) * 1000 + currentPage, // Deterministic seed
+          seed: characterName.charCodeAt(0) * 1000, // Deterministic seed
           max_tokens: 200
         })
       });
@@ -267,7 +219,7 @@ export function LLMReader() {
       }
 
       // Add character name as clickable with optional description
-      const boundaries = getSentenceBoundaries(pages[currentPage].text, match.index);
+      const boundaries = getSentenceBoundaries(pages[0].text, match.index);
       parts.push(
         <span key={`c-${keyOffset++}`}>
           <span
@@ -374,13 +326,13 @@ export function LLMReader() {
       <div className="flex-1 overflow-auto">
         <div className="max-w-4xl mx-auto px-8 py-12">
           <h2 className="mb-8 text-center opacity-60">
-            {pages[currentPage].chapter}
+            {pages[0].chapter}
           </h2>
           <div
             className="leading-relaxed whitespace-pre-line"
             style={{ fontSize: `${fontSize}px` }}
           >
-            {renderFormattedText(pages[currentPage].text)}
+            {renderFormattedText(pages[0].text)}
           </div>
         </div>
       </div>
@@ -416,33 +368,6 @@ export function LLMReader() {
           </div>
         </div>
       )}
-
-      {/* Footer Navigation */}
-      <footer className="border-t border-gray-300 px-4 py-4 flex items-center justify-between">
-        <button
-          onClick={prevPage}
-          disabled={currentPage === 0}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-black/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          aria-label="Previous page"
-        >
-          <ChevronLeft className="w-5 h-5" />
-          <span>Previous</span>
-        </button>
-
-        <div className="text-sm opacity-60">
-          Page {currentPage + 1} of {pages.length}
-        </div>
-
-        <button
-          onClick={nextPage}
-          disabled={currentPage === pages.length - 1}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-black/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          aria-label="Next page"
-        >
-          <span>Next</span>
-          <ChevronRight className="w-5 h-5" />
-        </button>
-      </footer>
 
       <style>{`
         .character-name-llm {

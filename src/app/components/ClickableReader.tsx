@@ -1,29 +1,16 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, BookOpen, Settings, Sun } from 'lucide-react';
+import { BookOpen, Settings, Sun } from 'lucide-react';
 import { CharacterPopover } from './CharacterPopover';
 import { characters, bookMetadata } from '../data/bookData';
 import { getExcerptForMode } from '../data/excerptLoader';
 
 export function ClickableReader() {
-  const [currentPage, setCurrentPage] = useState(0);
   const [fontSize, setFontSize] = useState(18);
   const [theme, setTheme] = useState<'white' | 'sepia'>('sepia');
   const [showSettings, setShowSettings] = useState(false);
 
   // Load excerpt based on condition and mode for counterbalancing
   const pages = getExcerptForMode('clickable');
-
-  const nextPage = () => {
-    if (currentPage < pages.length - 1) {
-      setCurrentPage(currentPage + 1);
-    }
-  };
-
-  const prevPage = () => {
-    if (currentPage > 0) {
-      setCurrentPage(currentPage - 1);
-    }
-  };
 
   const renderTextWithCharacters = (text: string) => {
     const parts: React.JSX.Element[] = [];
@@ -147,43 +134,16 @@ export function ClickableReader() {
       <div className="flex-1 overflow-auto">
         <div className="max-w-3xl mx-auto px-8 py-12">
           <h2 className="mb-8 text-center opacity-60">
-            {pages[currentPage].chapter}
+            {pages[0].chapter}
           </h2>
           <div
             className="leading-relaxed whitespace-pre-line"
             style={{ fontSize: `${fontSize}px` }}
           >
-            {renderTextWithCharacters(pages[currentPage].text)}
+            {renderTextWithCharacters(pages[0].text)}
           </div>
         </div>
       </div>
-
-      {/* Footer Navigation */}
-      <footer className="border-t border-gray-300 px-4 py-4 flex items-center justify-between">
-        <button
-          onClick={prevPage}
-          disabled={currentPage === 0}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-black/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          aria-label="Previous page"
-        >
-          <ChevronLeft className="w-5 h-5" />
-          <span>Previous</span>
-        </button>
-
-        <div className="text-sm opacity-60">
-          Page {currentPage + 1} of {pages.length}
-        </div>
-
-        <button
-          onClick={nextPage}
-          disabled={currentPage === pages.length - 1}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-black/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          aria-label="Next page"
-        >
-          <span>Next</span>
-          <ChevronRight className="w-5 h-5" />
-        </button>
-      </footer>
 
       <style>{`
         .character-name {
