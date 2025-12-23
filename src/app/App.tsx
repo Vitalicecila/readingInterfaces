@@ -5,8 +5,50 @@ import { NetworkReader } from './components/NetworkReader';
 import { LLMReader } from './components/LLMReader';
 import { X } from 'lucide-react';
 
+// Interface button order based on counterbalancing (matches Latin square)
+// Button order rotates so participants naturally go through excerpts A→B→C→D
+// Condition 1: Tabbed(A) → Clickable(B) → Network(C) → LLM(D)
+// Condition 2: LLM(A) → Tabbed(B) → Clickable(C) → Network(D)
+// Condition 3: Network(A) → LLM(B) → Tabbed(C) → Clickable(D)
+// Condition 4: Clickable(A) → Network(B) → LLM(C) → Tabbed(D)
+const INTERFACE_ORDER: Record<number, Array<{ mode: 'clickable' | 'tabbed' | 'network' | 'llm', label: string }>> = {
+  1: [
+    { mode: 'tabbed', label: 'Tabbed View' },
+    { mode: 'clickable', label: 'Clickable Names' },
+    { mode: 'network', label: 'Network View' },
+    { mode: 'llm', label: 'LLM Enhanced' }
+  ],
+  2: [
+    { mode: 'llm', label: 'LLM Enhanced' },
+    { mode: 'tabbed', label: 'Tabbed View' },
+    { mode: 'clickable', label: 'Clickable Names' },
+    { mode: 'network', label: 'Network View' }
+  ],
+  3: [
+    { mode: 'network', label: 'Network View' },
+    { mode: 'llm', label: 'LLM Enhanced' },
+    { mode: 'tabbed', label: 'Tabbed View' },
+    { mode: 'clickable', label: 'Clickable Names' }
+  ],
+  4: [
+    { mode: 'clickable', label: 'Clickable Names' },
+    { mode: 'network', label: 'Network View' },
+    { mode: 'llm', label: 'LLM Enhanced' },
+    { mode: 'tabbed', label: 'Tabbed View' }
+  ]
+};
+
 export default function App() {
-  const [mode, setMode] = useState<'clickable' | 'tabbed' | 'network' | 'llm'>('tabbed');
+  // Get condition from URL
+  const params = new URLSearchParams(window.location.search);
+  const condition = parseInt(params.get('condition') || '1');
+  const validCondition = condition >= 1 && condition <= 4 ? condition : 1;
+
+  // Get button order for this condition
+  const buttonOrder = INTERFACE_ORDER[validCondition];
+
+  // Default to first interface in the order
+  const [mode, setMode] = useState<'clickable' | 'tabbed' | 'network' | 'llm'>(buttonOrder[0].mode);
   const [showWelcome, setShowWelcome] = useState(true);
 
   // Show welcome popup on first visit
@@ -82,48 +124,21 @@ export default function App() {
         </div>
       )}
 
-      {/* Mode Switcher */}
+      {/* Mode Switcher - Dynamic order based on condition */}
       <div className="fixed top-4 right-4 z-50 flex gap-2 bg-white border border-gray-300 rounded-lg shadow-lg p-2">
-        <button
-          onClick={() => setMode('tabbed')}
-          className={`px-4 py-2 rounded transition-colors ${
-            mode === 'tabbed'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          Tabbed View
-        </button>
-        <button
-          onClick={() => setMode('clickable')}
-          className={`px-4 py-2 rounded transition-colors ${
-            mode === 'clickable'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          Clickable Names
-        </button>
-        <button
-          onClick={() => setMode('network')}
-          className={`px-4 py-2 rounded transition-colors ${
-            mode === 'network'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          Network View
-        </button>
-        <button
-          onClick={() => setMode('llm')}
-          className={`px-4 py-2 rounded transition-colors ${
-            mode === 'llm'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          LLM Enhanced
-        </button>
+        {buttonOrder.map((button) => (
+          <button
+            key={button.mode}
+            onClick={() => setMode(button.mode)}
+            className={`px-4 py-2 rounded transition-colors ${
+              mode === button.mode
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            {button.label}
+          </button>
+        ))}
       </div>
 
       {/* Render the selected page */}
